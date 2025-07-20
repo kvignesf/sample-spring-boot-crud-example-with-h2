@@ -14,16 +14,16 @@ steps:
     gitleaks version
 
     echo "🔍 Running Gitleaks secret scan..."
-    gitleaks detect --source=. --exit-code 1 --report-format sarif --report-path=gitleaks-report.sarif || echo "⚠️ Secrets found, but continuing..."
-    
-    echo "📦 Moving Gitleaks report to artifact staging..."
-    mkdir -p $(Build.ArtifactStagingDirectory)/gitleaks
-    mv gitleaks-report.sarif $(Build.ArtifactStagingDirectory)/gitleaks/
-  displayName: '🔍 Gitleaks Secret Scan'
-  failOnStderr: false
-  continueOnError: true
+    mkdir -p $(Build.ArtifactStagingDirectory)
+    gitleaks detect --source=. --exit-code 1 --report-format sarif --report-path=gitleaks-report.sarif
 
-# Step 2: Trivy scan (fail on HIGH/CRITICAL)
+    echo "📦 Moving Gitleaks report to artifact staging..."
+    mv gitleaks-report.sarif $(Build.ArtifactStagingDirectory)/
+  displayName: '🔍 Gitleaks Secret Scan'
+  failOnStderr: true
+  continueOnError: false  # Fail pipeline if secrets are found
+
+# Step 2: Trivy scan (only fail on HIGH/CRITICAL)
 - script: |
     echo "🛠 Installing Trivy..."
     sudo apt-get update
@@ -35,8 +35,8 @@ steps:
     echo "🛡 Running Trivy vulnerability scan..."
     trivy fs . --exit-code 1 --severity HIGH,CRITICAL --format table
   displayName: '🛡 Trivy Scan for Vulnerabilities'
-  failOnStderr: true
-  continueOnError: false
+  failOnStderr: false  # ✅ Fix: avoid false failure due to info logs
+  continueOnError: false  # Fail pipeline on HIGH/CRITICAL vulnerabilities
 
 # Step 3: Build the app using Maven
 - task: Maven@3
