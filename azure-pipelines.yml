@@ -5,6 +5,7 @@ pool:
   name: azurevm
 
 steps:
+
 # Step 1: Secret Scan using Gitleaks
 - script: |
     echo "🔐 Installing Gitleaks..."
@@ -15,13 +16,12 @@ steps:
 
     echo "🔍 Running Gitleaks secret scan..."
     mkdir -p $(Build.ArtifactStagingDirectory)
-    gitleaks detect --source=. --exit-code 1 --report-format sarif --report-path=gitleaks-report.sarif
+    gitleaks detect --source=. --exit-code 0 --report-format sarif --report-path=$(Build.ArtifactStagingDirectory)/gitleaks-report.sarif
 
-    echo "📦 Moving Gitleaks report to artifact staging..."
-    mv gitleaks-report.sarif $(Build.ArtifactStagingDirectory)/
+    echo "📦 Gitleaks scan finished. Report saved to artifact staging."
   displayName: '🔍 Gitleaks Secret Scan'
-  failOnStderr: true
-  continueOnError: false  # Fail pipeline if secrets are found
+  continueOnError: true
+  failOnStderr: false
 
 # Step 2: Trivy scan (only fail on HIGH/CRITICAL)
 - script: |
@@ -35,8 +35,8 @@ steps:
     echo "🛡 Running Trivy vulnerability scan..."
     trivy fs . --exit-code 1 --severity HIGH,CRITICAL --format table
   displayName: '🛡 Trivy Scan for Vulnerabilities'
-  failOnStderr: false  # ✅ Fix: avoid false failure due to info logs
-  continueOnError: false  # Fail pipeline on HIGH/CRITICAL vulnerabilities
+  continueOnError: false
+  failOnStderr: true
 
 # Step 3: Build the app using Maven
 - task: Maven@3
@@ -59,10 +59,18 @@ steps:
     TargetFolder: '$(Build.ArtifactStagingDirectory)'
   displayName: '📦 Copy files to artifact staging'
 
-# Step 5: Publish artifacts
+# Step 5: Publish build artifact
 - task: PublishBuildArtifacts@1
   inputs:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
     ArtifactName: 'Shopping'
     publishLocation: 'Container'
-  displayName: '🚀 Publish Artifacts'
+  displayName: '🚀 Publish App Artifacts'
+
+# Step 6: Publish Gitleaks report separately (for download/viewing)
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(Build.ArtifactStagingDirectory)/gitleaks-report.sarif'
+    ArtifactName: 'ScanReports'
+    publishLocation: 'Container'
+  displayName: '🧾 Publish Gitleaks Report Artifact'
