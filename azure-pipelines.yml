@@ -1,5 +1,5 @@
 trigger:
-- main
+  - main
 
 pool:
   name: azurevm
@@ -7,7 +7,12 @@ pool:
 steps:
 # Step 1: Secret Scan using Gitleaks
 - script: |
-    echo "🔐 Running Gitleaks secret scan..."
+    echo "🔐 Installing Gitleaks..."
+    curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+    chmod +x gitleaks
+    sudo mv gitleaks /usr/local/bin/
+
+    echo "🔍 Running Gitleaks secret scan..."
     gitleaks detect --source=. --exit-code 1 --report-format sarif --report-path=gitleaks-report.sarif
   displayName: '🔍 Gitleaks Secret Scan'
   failOnStderr: true
@@ -15,7 +20,14 @@ steps:
 
 # Step 2: Trivy scan (only fail on HIGH/CRITICAL)
 - script: |
-    echo "🔐 Running Trivy vulnerability scan..."
+    echo "🛠 Installing Trivy..."
+    sudo apt-get update
+    sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+    echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+    sudo apt-get update && sudo apt-get install -y trivy
+
+    echo "🛡 Running Trivy vulnerability scan..."
     trivy fs . --exit-code 1 --severity HIGH,CRITICAL --format table
   displayName: '🛡 Trivy Scan for Vulnerabilities'
   failOnStderr: true
@@ -33,12 +45,14 @@ steps:
     publishJUnitResults: true
     testResultsFiles: '**/surefire-reports/TEST-*.xml'
     goals: 'package'
+  displayName: '⚙️ Build with Maven'
 
 # Step 4: Copy files to artifact staging
 - task: CopyFiles@2
   inputs:
     Contents: '**'
     TargetFolder: '$(Build.ArtifactStagingDirectory)'
+  displayName: '📦 Copy files to artifact staging'
 
 # Step 5: Publish artifacts
 - task: PublishBuildArtifacts@1
@@ -46,3 +60,4 @@ steps:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)'
     ArtifactName: 'Shopping'
     publishLocation: 'Container'
+  displayName: '🚀 Publish Artifacts'
