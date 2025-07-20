@@ -10,7 +10,7 @@ steps:
     echo "🔐 Installing Gitleaks..."
     curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
     chmod +x gitleaks
-    sudo mv gitleaks /usr/local/bin/
+    sudo mv gitleaks /usr/local/bin/gitleaks
 
     echo "🔍 Running Gitleaks secret scan..."
     gitleaks detect --source=. --exit-code 1 --report-format sarif --report-path=gitleaks-report.sarif
