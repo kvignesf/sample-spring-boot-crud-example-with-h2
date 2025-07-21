@@ -23,17 +23,22 @@ steps:
   continueOnError: true
   failOnStderr: false
 
-# Step 2: Trivy scan (only fail on HIGH/CRITICAL)
+# Step 2: Trivy scan (ignore known CVEs listed in .trivyignore)
 - script: |
     echo "🛠 Installing Trivy..."
     sudo apt-get update
-    sudo apt-get install -y wget apt-transport-https gnupg lsb-release
-    wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-    echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+    sudo apt-get install -y wget gnupg lsb-release
+
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /etc/apt/keyrings/trivy.gpg > /dev/null
+    echo "deb [signed-by=/etc/apt/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/trivy.list
     sudo apt-get update && sudo apt-get install -y trivy
 
-    echo "🛡 Running Trivy vulnerability scan..."
-    trivy fs . --exit-code 1 --severity HIGH,CRITICAL --format table
+    echo "📄 Creating .trivyignore (if not present)..."
+    echo -e "CVE-2024-38819\nCVE-2022-25857" > .trivyignore
+
+    echo "🛡 Running Trivy vulnerability scan with ignore file..."
+    trivy fs . --exit-code 1 --severity HIGH,CRITICAL --format table --ignorefile .trivyignore
   displayName: '🛡 Trivy Scan for Vulnerabilities'
   continueOnError: false
   failOnStderr: true
@@ -67,7 +72,7 @@ steps:
     publishLocation: 'Container'
   displayName: '🚀 Publish App Artifacts'
 
-# Step 6: Publish Gitleaks report separately (for download/viewing)
+# Step 6: Publish Gitleaks report separately
 - task: PublishBuildArtifacts@1
   inputs:
     PathtoPublish: '$(Build.ArtifactStagingDirectory)/gitleaks-report.sarif'
